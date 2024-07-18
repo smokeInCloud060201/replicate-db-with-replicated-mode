@@ -1,39 +1,103 @@
+#Replicate by postgresql bitnami image
+
+
+#version: '3.8'
+#
+#services:
+#  postgresql-master:
+#    image: bitnami/postgresql:16-debian-11
+#    ports:
+#      - '5333:5432'
+#    volumes:
+#      - 'postgresql_master_data:/bitnami/postgresql'
+#    environment:
+#      - POSTGRESQL_PGAUDIT_LOG=READ,WRITE
+#      - POSTGRESQL_LOG_HOSTNAME=true
+#      - POSTGRESQL_REPLICATION_MODE=master
+#      - POSTGRESQL_REPLICATION_USER=repl_user
+#      - POSTGRESQL_REPLICATION_PASSWORD=repl_password
+#      - POSTGRESQL_USERNAME=root
+#      - POSTGRESQL_PASSWORD=admin123
+#      - POSTGRESQL_DATABASE=repl_database
+#
+#  postgresql-slave:
+#    image: bitnami/postgresql:16-debian-11
+#    ports:
+#      - '5334:5432'
+#    depends_on:
+#      - postgresql-master
+#    environment:
+#      - POSTGRESQL_USERNAME=root
+#      - POSTGRESQL_PASSWORD=admin123
+#      - POSTGRESQL_MASTER_HOST=postgresql-master
+#      - POSTGRESQL_PGAUDIT_LOG=READ,WRITE
+#      - POSTGRESQL_LOG_HOSTNAME=true
+#      - POSTGRESQL_REPLICATION_MODE=slave
+#      - POSTGRESQL_REPLICATION_USER=repl_user
+#      - POSTGRESQL_REPLICATION_PASSWORD=repl_password
+#      - POSTGRESQL_MASTER_PORT_NUMBER=5432
+#
+#volumes:
+#  postgresql_master_data:
+#    driver: local
+
+#Replicate by postgresql image
+
 version: '3.8'
+x-postgres-common:
+  &postgres-common
+  image: postgres:16-alpine
+  user: postgres
+  restart: always
+  healthcheck:
+    test: 'pg_isready -U root --dbname=repl_database'
+    interval: 10s
+    timeout: 5s
+    retries: 5
 
 services:
-  postgresql-master:
-    image: bitnami/postgresql:16-debian-11
+  postgres_primary:
+    <<: *postgres-common
     ports:
-      - '5333:5432'
+      - 5433:5432
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_DB: repl_database
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_HOST_AUTH_METHOD: "scram-sha-256\nhost replication all 0.0.0.0/0 md5"
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    command: |
+      postgres 
+      -c wal_level=replica 
+      -c hot_standby=on 
+      -c max_wal_senders=10 
+      -c max_replication_slots=10 
+      -c hot_standby_feedback=on
     volumes:
-      - 'postgresql_master_data:/bitnami/postgresql'
-    environment:
-      - POSTGRESQL_PGAUDIT_LOG=READ,WRITE
-      - POSTGRESQL_LOG_HOSTNAME=true
-      - POSTGRESQL_REPLICATION_MODE=master
-      - POSTGRESQL_REPLICATION_USER=repl_user
-      - POSTGRESQL_REPLICATION_PASSWORD=repl_password
-      - POSTGRESQL_USERNAME=root
-      - POSTGRESQL_PASSWORD=admin123
-      - POSTGRESQL_DATABASE=repl_database
+      - ./00_init.sql:/docker-entrypoint-initdb.d/00_init.sql
 
-  postgresql-slave:
-    image: bitnami/postgresql:16-debian-11
+  postgres_replica:
+    <<: *postgres-common
     ports:
-      - '5334:5432'
-    depends_on:
-      - postgresql-master
+      - 5434:5432
     environment:
-      - POSTGRESQL_USERNAME=root
-      - POSTGRESQL_PASSWORD=admin123
-      - POSTGRESQL_MASTER_HOST=postgresql-master
-      - POSTGRESQL_PGAUDIT_LOG=READ,WRITE
-      - POSTGRESQL_LOG_HOSTNAME=true
-      - POSTGRESQL_REPLICATION_MODE=slave
-      - POSTGRESQL_REPLICATION_USER=repl_user
-      - POSTGRESQL_REPLICATION_PASSWORD=repl_password
-      - POSTGRESQL_MASTER_PORT_NUMBER=5432
+      PGUSER: replicator
+      PGPASSWORD: replicator_password
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: admin123
+    command: |
+      bash -c "
+      until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=postgres_primary --port=5432
+      do
+      echo 'Waiting for primary to connect...'
+      sleep 1s
+      done
+      echo 'Backup done, starting replica...'
+      chmod 0700 /var/lib/postgresql/data
+      postgres
+      "
+    depends_on:
+      - postgres_primary
 
-volumes:
-  postgresql_master_data:
-    driver: local
+
+
