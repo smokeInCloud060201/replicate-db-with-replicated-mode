@@ -1,5 +1,3 @@
-#Replicate by postgresql bitnami image
-
 
 #version: '3.8'
 #
@@ -43,7 +41,6 @@
 
 #Replicate by postgresql image
 
-version: '3.8'
 x-postgres-common:
   &postgres-common
   image: postgres:16-alpine
@@ -56,6 +53,14 @@ x-postgres-common:
     retries: 5
 
 services:
+  replicate:
+    container_name: replicate-app
+    image: custom-replication
+    build:
+      context: .
+    ports:
+      - 8080:8080
+
   postgres_primary:
     <<: *postgres-common
     ports:
