@@ -1,3 +1,21 @@
 spring:
   application:
     name: repilcate-db
+
+app:
+  config:
+    database:
+      master:
+        host: localhost
+        port: 3306
+        username: root
+        password: root
+      slaves:
+        - host: localhost
+          port: 3307
+          username: root
+          password: root
+        - host: localhost
+          port: 3308
+          username: root
+          password: root
