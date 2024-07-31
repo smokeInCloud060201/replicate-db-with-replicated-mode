@@ -53,14 +53,6 @@ x-postgres-common:
     retries: 5
 
 services:
-  replicate:
-    container_name: replicate-app
-    image: custom-replication
-    build:
-      context: .
-    ports:
-      - 8080:8080
-
   postgres_primary:
     <<: *postgres-common
     ports:
@@ -78,6 +70,8 @@ services:
       -c max_wal_senders=10 
       -c max_replication_slots=10 
       -c hot_standby_feedback=on
+    networks:
+      - replicate-network
     volumes:
       - ./00_init.sql:/docker-entrypoint-initdb.d/00_init.sql
 
@@ -101,5 +95,42 @@ services:
       chmod 0700 /var/lib/postgresql/data
       postgres
       "
+    networks:
+      - replicate-network
     depends_on:
       - postgres_primary
+
+  master-service:
+    restart: no
+    image: master-replicate:latest
+    container_name: master-service
+    ports:
+      - "8080:8080"
+    environment:
+      MASTER_REPLICATE_DB_HOST: postgres_primary
+      MASTER_REPLICATE_DB_PORT: 5433
+      MASTER_REPLICATE_DB_USER_NAME: root
+      MASTER_REPLICATE_DB_USER_PW: admin123
+    networks:
+      - replicate-network
+    depends_on:
+      - postgres_primary
+
+  slave-service:
+    restart: no
+    image: slave-replicate:latest
+    container_name: slave-service
+    ports:
+      - "8081:8081"
+    environment:
+      SLAVE_REPLICATE_DB_HOST: postgres_replica
+      SLAVE_REPLICATE_DB_PORT: 5434
+      SLAVE_REPLICATE_DB_USER_NAME: root
+      SLAVE_REPLICATE_DB_USER_PW: admin123
+    networks:
+      - replicate-network
+    depends_on:
+      - postgres_replica
+
+networks:
+  replicate-network:

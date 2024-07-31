@@ -1,0 +1,15 @@
+
+
+spring:
+  application:
+    name: slave service
+  datasource:
+    url: jdbc:postgresql://${SLAVE_REPLICATE_DB_HOST:localhost}:${SLAVE_REPLICATE_DB_PORT:5434}/repl_database
+    username: ${SLAVE_REPLICATE_DB_USER_NAME:root}
+    password: ${SLAVE_REPLICATE_DB_USER_PW:admin123}
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: validate
+server:
+  port: 8081

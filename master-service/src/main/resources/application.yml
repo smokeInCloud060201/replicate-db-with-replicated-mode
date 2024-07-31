@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: master service
+  datasource:
+    url: jdbc:postgresql://${MASTER_REPLICATE_DB_HOST:localhost}:${MASTER_REPLICATE_DB_PORT:5433}/repl_database
+    username: ${MASTER_REPLICATE_DB_USER_NAME:root}
+    password: ${MASTER_REPLICATE_DB_USER_PW:admin123}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: update
